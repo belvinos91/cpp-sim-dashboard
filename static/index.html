@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>C++ Simulation Dashboard</title>
 <link rel="stylesheet" href="/static/vendor/codemirror.css">
+<link rel="stylesheet" href="/static/vendor/show-hint.css">
 <style>
   :root {
     --bg: #f6f5f2; --panel: #ffffff; --ink: #1f2328; --muted: #6b6f76;
@@ -55,14 +56,60 @@
                 border-radius: 8px; font: 13px/1.45 ui-monospace, Consolas, monospace;
                 white-space: pre-wrap; word-break: break-word; max-height: 24vh; overflow: auto; }
   pre.console .err { color: #ff9b94; } pre.console .warn { color: #f2cc60; }
+  nav.tabs { display: flex; gap: 4px; margin-left: auto; }
+  nav.tabs button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+                    border: 1px solid transparent; background: transparent; color: var(--muted); }
+  nav.tabs button[aria-selected="true"] { border-color: var(--line); background: var(--code-bg); color: var(--ink); font-weight: 600; }
+  [hidden] { display: none !important; }
+  #dict { padding: 16px 20px 32px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 900px) { #dict { padding: 12px 16px 24px; } }
+  .dict-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .dict-tools input[type=search] { flex: 1 1 240px; font: inherit; padding: 8px 10px; border-radius: 6px;
+           border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+  .chip { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 99px; cursor: pointer;
+          border: 1px solid var(--line); background: var(--panel); color: var(--muted); }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; }
+  .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 14px 0; }
+  .card-head h2 { margin: 0; font-size: 16px; font-weight: 650; }
+  .card-head .cat { font-size: 12px; color: var(--muted); }
+  .card-head button { margin-left: auto; font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 6px;
+                      border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 14px; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+  .pair .lang { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  .pair pre { margin: 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+              font: 13px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .card .note { padding: 0 14px 12px; font-size: 14px; }
+  .card .note code, .hint code { font: 13px ui-monospace, Consolas, monospace; background: var(--code-bg);
+                    border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .dict-count { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .CodeMirror-hints { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; z-index: 50;
+                      font: 13px ui-monospace, Consolas, monospace; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+  .CodeMirror-hint { color: var(--ink); padding: 2px 8px; }
+  li.CodeMirror-hint-active { background: var(--accent); color: var(--accent-ink); }
+  .CodeMirror-hint.hint-snippet { font-style: italic; }
+  .CodeMirror-matchingbracket { outline: 1px solid var(--muted); color: inherit !important; }
 </style>
 </head>
 <body>
 <header>
   <h1>C++ Simulation Dashboard</h1>
   <span class="compiler" id="compiler">checking compiler…</span>
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-editor" aria-selected="true">Editor</button>
+    <button role="tab" id="tab-dict" aria-selected="false">C++ ⇄ Python</button>
+  </nav>
 </header>
-<main>
+<section id="dict" hidden aria-label="C++ and Python dictionary">
+  <div class="dict-tools">
+    <input type="search" id="dict-search" placeholder="Search: vector, loop, random, class…">
+  </div>
+  <div class="dict-tools" id="dict-cats"></div>
+  <div class="dict-count" id="dict-count"></div>
+  <div id="dict-list"></div>
+</section>
+<main id="editor-view">
   <section class="panel" aria-label="Code editor">
     <div class="toolbar">
       <label for="example">Example</label>
@@ -72,7 +119,7 @@
       <button class="run" id="run" title="Ctrl+Enter">Run ▶</button>
     </div>
     <textarea id="code"></textarea>
-    <div class="hint">Write a file called <code>data.csv</code> (first row = column names, first column = x) and it is plotted automatically. A first column named <code>run</code> draws one line per run.</div>
+    <div class="hint">Suggestions appear as you type (<code>Ctrl+Space</code> to show them, <code>Enter</code> to accept); try <code>main</code>, <code>fori</code>, <code>csv</code> or <code>rng</code>. Write a file called <code>data.csv</code> (first row = column names, first column = x) and it is plotted automatically. A first column named <code>run</code> draws one line per run.</div>
   </section>
   <section class="panel" aria-label="Results">
     <div class="status" id="status">Press Run (or Ctrl+Enter) to compile and run.</div>
@@ -83,16 +130,28 @@
 </main>
 <script src="/static/vendor/codemirror.js"></script>
 <script src="/static/vendor/clike.js"></script>
+<script src="/static/vendor/show-hint.js"></script>
+<script src="/static/vendor/matchbrackets.js"></script>
+<script src="/static/vendor/closebrackets.js"></script>
+<script src="/static/cpp-hints.js"></script>
 <script src="/static/vendor/plotly.min.js"></script>
 <script>
 const editor = CodeMirror.fromTextArea(document.getElementById('code'), {
-  mode: 'text/x-c++src', lineNumbers: true, indentUnit: 4, matchBrackets: true,
-  extraKeys: { 'Ctrl-Enter': run, 'Cmd-Enter': run, Tab: cm => cm.replaceSelection('    ') }
+  mode: 'text/x-c++src', lineNumbers: true, indentUnit: 4, matchBrackets: true, autoCloseBrackets: true,
+  extraKeys: { 'Ctrl-Enter': run, 'Cmd-Enter': run, 'Ctrl-Space': 'autocomplete',
+               Tab: cm => cm.replaceSelection('    ') }
 });
+setupCppHints(editor);
+const BLANK = '#include <iostream>\n\nint main() {\n    \n    return 0;\n}\n';
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
 
 async function loadExample(name) {
+  if (name === '__blank__') {
+    editor.setValue(BLANK); editor.focus(); editor.setCursor({ line: 3, ch: 4 });
+    try { localStorage.setItem('cppdash-example', name); } catch (e) {}
+    return;
+  }
   const r = await fetch('/api/examples/' + encodeURIComponent(name));
   const j = await r.json();
   editor.setValue(j.code);
@@ -102,13 +161,69 @@ async function loadExample(name) {
 async function init() {
   fetch('/api/info').then(r => r.json()).then(j => $('compiler').textContent = j.compiler);
   const names = await (await fetch('/api/examples')).json();
-  $('example').innerHTML = names.map(n => `<option>${esc(n)}</option>`).join('');
+  $('example').innerHTML = '<option value="__blank__">(blank file: write from scratch)</option>' +
+    names.map(n => `<option>${esc(n)}</option>`).join('');
   let start = names[0];
-  try { const s = localStorage.getItem('cppdash-example'); if (names.includes(s)) start = s; } catch (e) {}
+  try { const s = localStorage.getItem('cppdash-example'); if (s === '__blank__' || names.includes(s)) start = s; } catch (e) {}
   $('example').value = start;
   await loadExample(start);
-  $('example').addEventListener('change', e => loadExample(e.target.value));
+  $('example').addEventListener('change', e => { if (e.target.value) loadExample(e.target.value); });
   $('run').addEventListener('click', run);
+  $('tab-editor').addEventListener('click', () => showTab('editor'));
+  $('tab-dict').addEventListener('click', () => showTab('dict'));
+  $('dict-search').addEventListener('input', renderDictionary);
+  try { if (localStorage.getItem('cppdash-tab') === 'dict') showTab('dict'); } catch (e) {}
+}
+
+// ---------- tabs ----------
+function showTab(name) {
+  const dict = name === 'dict';
+  $('dict').hidden = !dict; $('editor-view').hidden = dict;
+  $('tab-dict').setAttribute('aria-selected', dict); $('tab-editor').setAttribute('aria-selected', !dict);
+  if (!dict) editor.refresh(); else if (!dictEntries.length) loadDictionary();
+  try { localStorage.setItem('cppdash-tab', name); } catch (e) {}
+}
+
+// ---------- C++ <-> Python dictionary ----------
+let dictEntries = [], dictCat = 'All';
+const md = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>');
+
+async function loadDictionary() {
+  dictEntries = await (await fetch('/api/dictionary')).json();
+  const cats = ['All', ...new Set(dictEntries.map(e => e.category))];
+  $('dict-cats').innerHTML = cats.map(c =>
+    `<button class="chip" data-cat="${esc(c)}" aria-pressed="${c === dictCat}">${esc(c)}</button>`).join('');
+  $('dict-cats').querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
+    dictCat = b.dataset.cat;
+    $('dict-cats').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b));
+    renderDictionary();
+  }));
+  renderDictionary();
+}
+
+function renderDictionary() {
+  const q = $('dict-search').value.trim().toLowerCase();
+  const shown = dictEntries.filter(e => (dictCat === 'All' || e.category === dictCat) &&
+    (!q || [e.title, e.category, e.python, e.cpp, e.note].join(' ').toLowerCase().includes(q)));
+  $('dict-count').textContent = `${shown.length} of ${dictEntries.length} entries`;
+  $('dict-list').innerHTML = shown.map(e => `
+    <article class="card">
+      <div class="card-head"><h2>${esc(e.title)}</h2><span class="cat">${esc(e.category)}</span>
+        <button data-id="${esc(e.id)}">Open in editor and run ▶</button></div>
+      <div class="pair">
+        <div><div class="lang">Python</div><pre>${esc(e.python)}</pre></div>
+        <div><div class="lang">C++</div><pre>${esc(e.cpp)}</pre></div>
+      </div>
+      <div class="note">${md(e.note)}</div>
+    </article>`).join('') || '<p class="dict-count">No entry matches.</p>';
+  $('dict-list').querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', () => {
+    const e = dictEntries.find(x => x.id === b.dataset.id);
+    let opt = $('example').querySelector('option[value=""]');
+    if (!opt) { opt = document.createElement('option'); opt.value = ''; $('example').prepend(opt); }
+    opt.textContent = 'dictionary: ' + e.title;
+    $('example').value = '';
+    editor.setValue(e.code); showTab('editor'); run();
+  }));
 }
 
 function setStatus(text, cls) { $('status').textContent = text; $('status').className = 'status ' + (cls || ''); }

@@ -15,6 +15,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 HERE = Path(__file__).resolve().parent
 EXAMPLES = HERE / "examples"
+DICTIONARY = HERE / "dictionary"
 EXE_NAME = "prog.exe" if sys.platform.startswith("win") else "prog"
 COMPILE_TIMEOUT_S = 30
 RUN_TIMEOUT_S = 10
@@ -93,6 +94,37 @@ def compile_and_run(code, args=""):
         shutil.rmtree(work, ignore_errors=True)
 
 
+def parse_entry(path):
+    """Read one dictionary entry: a C++ file whose first comment lines hold
+    title, category, python, cpp and note, ended by a line '// ---'.
+    Continuation lines of python/cpp/note start with '//  ' (two spaces)."""
+    meta, key = {}, None
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for line in lines:
+        if line.strip() == "// ---":
+            break
+        if line.startswith("//  ") and key:
+            meta[key].append(line[4:])
+            continue
+        if line.startswith("// ") and ":" in line:
+            key, _, value = line[3:].partition(":")
+            key = key.strip()
+            meta[key] = [value.strip()] if value.strip() else []
+    return {
+        "id": path.stem,
+        "title": " ".join(meta.get("title", [path.stem])),
+        "category": " ".join(meta.get("category", ["Other"])),
+        "python": "\n".join(meta.get("python", [])),
+        "cpp": "\n".join(meta.get("cpp", [])),
+        "note": " ".join(meta.get("note", [])),
+        "code": "\n".join(lines) + "\n",
+    }
+
+
+def dictionary_entries():
+    return [parse_entry(p) for p in sorted(DICTIONARY.glob("*.cpp"))]
+
+
 @app.get("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
@@ -109,6 +141,11 @@ def get_example(name):
     if not path.is_file() or path.parent != EXAMPLES:
         return jsonify({"error": "not found"}), 404
     return jsonify({"name": name, "code": path.read_text(encoding="utf-8")})
+
+
+@app.get("/api/dictionary")
+def api_dictionary():
+    return jsonify(dictionary_entries())
 
 
 @app.post("/api/run")

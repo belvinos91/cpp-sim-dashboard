@@ -6,12 +6,37 @@ Write C++ in your browser, press **Run**, and see the program's output and a plo
 
 ## What it does
 
-1. You write C++ in the editor (syntax highlighting, line numbers, `Ctrl+Enter` to run).
+1. You write C++ in the editor, from a blank file or an example: syntax highlighting, line numbers, automatic closing brackets, and **suggestions while you type** (`Ctrl+Space`), including snippets such as `main`, `fori`, `csv` and `rng`. `Ctrl+Enter` runs the code.
 2. The app compiles it with **your own `g++`** (`-std=c++17 -O2 -Wall -Wextra`) and runs it.
 3. It shows the compiler messages, the program's output and the compile and run times.
 4. If the program writes a file called **`data.csv`**, it is plotted automatically:
    * first row = column names, first column = x, every other column = one line;
    * a first column named `run` draws one line per run (for stochastic simulations).
+
+![Suggestions while typing](docs/autocomplete.png)
+
+## C++ ⇄ Python dictionary
+
+The **C++ ⇄ Python** tab shows 23 concepts side by side (printing, loops, functions, vectors, structs, random numbers, classes and more), each with a short note on the difference and a button that opens a full program in the editor and runs it.
+
+![The C++ and Python dictionary](docs/dictionary.png)
+
+Every entry is a real C++ file in `dictionary/`, and the tests compile and run all of them without warnings, so the dictionary cannot contain broken code. To add an entry, copy any file in `dictionary/` and edit it. The format is:
+
+```cpp
+// title: List of numbers -> std::vector
+// category: Containers
+// python:
+//  x = [1.0, 2.0, 3.0]
+// cpp:
+//  std::vector<double> x{1.0, 2.0, 3.0};
+// note: `append` is `push_back`, `len` is `.size()`.
+// ---
+#include <vector>
+int main() { std::vector<double> x{1.0, 2.0, 3.0}; }
+```
+
+Lines after `python:`, `cpp:` and `note:` start with `//` followed by **two** spaces; the line `// ---` ends the header, and the full program follows it.
 
 ## Examples included
 
@@ -46,7 +71,7 @@ Open <http://127.0.0.1:5000> in your browser.
 pip install pytest
 python -m pytest -v
 ```
-The tests compile real programs and check normal output, command-line arguments, compiler errors, runtime errors, a program that never stops (it is cut off after 10 s), reading `data.csv`, and that every example compiles and runs. They run automatically on GitHub for every push (see `.github/workflows/tests.yml`).
+The tests compile real programs and check normal output, command-line arguments, compiler errors, runtime errors, a program that never stops (it is cut off after 10 s), reading `data.csv`, that every example compiles and runs, and that every dictionary entry is complete and compiles without warnings. They run automatically on GitHub for every push (see `.github/workflows/tests.yml`).
 
 ## How it works
 
@@ -59,6 +84,7 @@ browser (static/index.html)              app.py (Flask, 127.0.0.1 only)         
 * `app.py`: about 120 lines of Python. Each run uses a fresh temporary folder, deleted afterwards.
 * `static/index.html`: the page. CodeMirror (editor) and Plotly (charts) are included in `static/vendor/`, so it works offline.
 * `examples/`: the example programs. Add your own `.cpp` file there and it appears in the menu.
+* `dictionary/`: the C++ ⇄ Python entries, one compilable `.cpp` file each.
 
 ## Safety
 

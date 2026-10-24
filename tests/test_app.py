@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from app import EXAMPLES, app, compile_and_run  # noqa: E402
+from app import DICTIONARY, EXAMPLES, app, compile_and_run, parse_entry  # noqa: E402
 
 
 @pytest.fixture
@@ -57,3 +57,19 @@ def test_api_endpoints(client):
     assert client.get("/api/examples/../app").status_code == 404
     res = client.post("/api/run", json={"code": "int main(){}"}).get_json()
     assert res["ok"]
+
+
+@pytest.mark.parametrize("path", sorted(DICTIONARY.glob("*.cpp")), ids=lambda p: p.stem)
+def test_dictionary_entry_is_complete_and_runs(path):
+    entry = parse_entry(path)
+    for field in ("title", "category", "python", "cpp", "note"):
+        assert entry[field].strip(), f"{path.name}: empty {field}"
+    res = compile_and_run(entry["code"])
+    assert res["ok"], res
+    assert "warning" not in res["compiler"], res["compiler"]   # dictionary code must be warning-free
+
+
+def test_dictionary_endpoint(client):
+    entries = client.get("/api/dictionary").get_json()
+    assert len(entries) >= 20
+    assert {"id", "title", "category", "python", "cpp", "note", "code"} <= set(entries[0])
