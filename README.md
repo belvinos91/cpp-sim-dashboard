@@ -38,6 +38,36 @@ int main() { std::vector<double> x{1.0, 2.0, 3.0}; }
 
 Lines after `python:`, `cpp:` and `note:` start with `//` followed by **two** spaces; the line `// ---` ends the header, and the full program follows it.
 
+## Local AI tutor (optional)
+
+Two more tabs use a coding model that runs **on your own computer** through [Ollama](https://ollama.com): nothing is sent to the internet.
+
+* **Python → C++**: paste a Python program; the AI writes the C++ version, which is then compiled and run. If it does not compile, the compiler errors are sent back to the AI to fix (up to 3 attempts). The Python is run too, and the two outputs are compared.
+* **Ask AI**: ask how to do something in C++ ("read a CSV file and compute the mean of each column"). Every complete program in an answer is compiled and run, and marked ✓ or ✗, with a button to open it in the editor.
+
+**The AI can be wrong.** That is why nothing it writes is trusted until the compiler and the output comparison have checked it.
+
+![Python to C++ with automatic checking](docs/ai_convert.png)
+
+![Ask the AI tutor](docs/ai_ask.png)
+
+### Set it up (Linux, no administrator rights needed)
+
+```
+mkdir -p ~/ollama
+curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar x --zstd -C ~/ollama
+echo 'export PATH="$HOME/ollama/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+ollama serve
+```
+Leave `ollama serve` running, and in a second terminal download the model once (about 5 GB):
+```
+ollama pull qwen2.5-coder:7b
+```
+Then start the dashboard as usual (`python app.py`). Ollama listens only on `127.0.0.1:11434`.
+
+To use another model, set `OLLAMA_MODEL`, for example `OLLAMA_MODEL=qwen2.5-coder:14b python app.py` (better answers, slower). Without a GPU, a 7B model answers in roughly 10 to 60 seconds.
+
 ## Examples included
 
 | Example | Model | What it shows |
@@ -71,7 +101,7 @@ Open <http://127.0.0.1:5000> in your browser.
 pip install pytest
 python -m pytest -v
 ```
-The tests compile real programs and check normal output, command-line arguments, compiler errors, runtime errors, a program that never stops (it is cut off after 10 s), reading `data.csv`, that every example compiles and runs, and that every dictionary entry is complete and compiles without warnings. They run automatically on GitHub for every push (see `.github/workflows/tests.yml`).
+The tests compile real programs and check normal output, command-line arguments, compiler errors, runtime errors, a program that never stops (it is cut off after 10 s), reading `data.csv`, that every example compiles and runs, that every dictionary entry is complete and compiles without warnings, and the AI features (fix loop, output comparison, error handling), using a stand-in for the model so no AI is needed to run the tests. They run automatically on GitHub for every push (see `.github/workflows/tests.yml`).
 
 ## How it works
 
@@ -83,6 +113,7 @@ browser (static/index.html)              app.py (Flask, 127.0.0.1 only)         
 
 * `app.py`: about 120 lines of Python. Each run uses a fresh temporary folder, deleted afterwards.
 * `static/index.html`: the page. CodeMirror (editor) and Plotly (charts) are included in `static/vendor/`, so it works offline.
+* `ai.py`: the local AI features: talking to Ollama, the compile-and-fix loop, running the Python, comparing outputs.
 * `examples/`: the example programs. Add your own `.cpp` file there and it appears in the menu.
 * `dictionary/`: the C++ ⇄ Python entries, one compilable `.cpp` file each.
 

@@ -13,6 +13,8 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
+import ai
+
 HERE = Path(__file__).resolve().parent
 EXAMPLES = HERE / "examples"
 DICTIONARY = HERE / "dictionary"
@@ -152,6 +154,32 @@ def api_dictionary():
 def api_run():
     body = request.get_json(force=True, silent=True) or {}
     return jsonify(compile_and_run(body.get("code", ""), body.get("args", "")))
+
+
+@app.get("/api/ai/status")
+def api_ai_status():
+    return jsonify(ai.status())
+
+
+@app.post("/api/ai/convert")
+def api_ai_convert():
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        return jsonify(ai.convert(body.get("python", ""), compile_and_run))
+    except ai.AIUnavailable as e:
+        return jsonify({"error": str(e)}), 503
+
+
+@app.post("/api/ai/ask")
+def api_ai_ask():
+    body = request.get_json(force=True, silent=True) or {}
+    history = body.get("history", [])
+    if not history or history[-1].get("role") != "user":
+        return jsonify({"error": "Send the conversation, ending with your question."}), 400
+    try:
+        return jsonify(ai.ask(history, compile_and_run, body.get("editor_code")))
+    except ai.AIUnavailable as e:
+        return jsonify({"error": str(e)}), 503
 
 
 @app.get("/api/info")

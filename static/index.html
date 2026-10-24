@@ -56,7 +56,8 @@
                 border-radius: 8px; font: 13px/1.45 ui-monospace, Consolas, monospace;
                 white-space: pre-wrap; word-break: break-word; max-height: 24vh; overflow: auto; }
   pre.console .err { color: #ff9b94; } pre.console .warn { color: #f2cc60; }
-  nav.tabs { display: flex; gap: 4px; margin-left: auto; }
+  nav.tabs { display: flex; gap: 4px; margin-left: auto; max-width: 100%; overflow-x: auto; }
+  nav.tabs button { white-space: nowrap; flex: none; }
   nav.tabs button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
                     border: 1px solid transparent; background: transparent; color: var(--muted); }
   nav.tabs button[aria-selected="true"] { border-color: var(--line); background: var(--code-bg); color: var(--ink); font-weight: 600; }
@@ -89,6 +90,35 @@
   .CodeMirror-hint { color: var(--ink); padding: 2px 8px; }
   li.CodeMirror-hint-active { background: var(--accent); color: var(--accent-ink); }
   .CodeMirror-hint.hint-snippet { font-style: italic; }
+  .ai-banner { margin: 16px 20px 0; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+               border-radius: 8px; background: var(--panel); font-size: 14px; }
+  .ai-banner code { font: 13px ui-monospace, Consolas, monospace; }
+  .conv-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { .conv-grid { grid-template-columns: 1fr; padding: 12px 16px; } }
+  .conv-grid .CodeMirror { height: 46vh; }
+  .two-out { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  @media (max-width: 700px) { .two-out { grid-template-columns: 1fr; } }
+  .attempts { padding: 0 12px 4px; font-size: 13px; color: var(--muted); }
+  #ask { max-width: 960px; margin: 0 auto; padding: 16px 20px 24px; }
+  @media (max-width: 900px) { #ask { padding: 12px 16px 20px; } }
+  .msg { margin-bottom: 14px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+  .msg.user { background: var(--code-bg); }
+  .msg .who { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .msg p { margin: 0 0 8px; } .msg p:last-child { margin-bottom: 0; }
+  .msg code { font: 13px ui-monospace, Consolas, monospace; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .msg pre { margin: 8px 0; padding: 10px 12px; background: var(--console); color: var(--console-ink); border-radius: 8px;
+             font: 13px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .msg pre code { background: none; border: 0; padding: 0; color: inherit; }
+  .code-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; margin: -2px 0 10px; }
+  .code-actions button { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+                         border: 1px solid var(--accent); background: transparent; color: var(--accent); }
+  .badge-ok { color: var(--ok); } .badge-err { color: var(--err); }
+  .ask-box { display: flex; flex-direction: column; gap: 8px; position: sticky; bottom: 0; padding: 10px 0 0; background: var(--bg); }
+  .ask-box textarea { font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+                      color: var(--ink); min-height: 70px; resize: vertical; }
+  .ask-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .ask-row button.run { margin-left: auto; }
+  .suggest { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
   .CodeMirror-matchingbracket { outline: 1px solid var(--muted); color: inherit !important; }
 </style>
 </head>
@@ -99,6 +129,8 @@
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-editor" aria-selected="true">Editor</button>
     <button role="tab" id="tab-dict" aria-selected="false">C++ ⇄ Python</button>
+    <button role="tab" id="tab-convert" aria-selected="false">Python → C++</button>
+    <button role="tab" id="tab-ask" aria-selected="false">Ask AI</button>
   </nav>
 </header>
 <section id="dict" hidden aria-label="C++ and Python dictionary">
@@ -108,6 +140,40 @@
   <div class="dict-tools" id="dict-cats"></div>
   <div class="dict-count" id="dict-count"></div>
   <div id="dict-list"></div>
+</section>
+<div class="ai-banner" id="ai-banner" hidden></div>
+<section id="convert" hidden aria-label="Python to C++ converter">
+  <div class="conv-grid">
+    <section class="panel">
+      <div class="toolbar"><strong>Python</strong>
+        <span class="hint" style="border:0;padding:0">paste or write a Python program</span>
+        <button class="run" id="convert-btn">Convert to C++ ▶</button></div>
+      <textarea id="py-code"></textarea>
+    </section>
+    <section class="panel">
+      <div class="toolbar"><strong>C++</strong>
+        <button class="run" id="conv-open" disabled>Open in editor ▶</button></div>
+      <div class="status" id="conv-status">The C++ version, compiled and run, appears here.</div>
+      <textarea id="cpp-out"></textarea>
+      <div class="attempts" id="conv-attempts"></div>
+      <div class="two-out">
+        <div><div class="section-title">Python output</div><pre class="console" id="py-out">—</pre></div>
+        <div><div class="section-title">C++ output</div><pre class="console" id="cpp-run-out">—</pre></div>
+      </div>
+    </section>
+  </div>
+</section>
+<section id="ask" hidden aria-label="Ask the AI tutor">
+  <div class="suggest" id="ask-suggest"></div>
+  <div id="ask-log"></div>
+  <div class="ask-box">
+    <textarea id="ask-input" placeholder="Ask anything about C++, e.g. How do I read a CSV file and compute the mean of each column?"></textarea>
+    <div class="ask-row">
+      <label><input type="checkbox" id="ask-include"> include the code from the Editor tab</label>
+      <button class="chip" id="ask-clear">New conversation</button>
+      <button class="run" id="ask-send" title="Ctrl+Enter">Ask ▶</button>
+    </div>
+  </div>
 </section>
 <main id="editor-view">
   <section class="panel" aria-label="Code editor">
@@ -130,6 +196,7 @@
 </main>
 <script src="/static/vendor/codemirror.js"></script>
 <script src="/static/vendor/clike.js"></script>
+<script src="/static/vendor/python.js"></script>
 <script src="/static/vendor/show-hint.js"></script>
 <script src="/static/vendor/matchbrackets.js"></script>
 <script src="/static/vendor/closebrackets.js"></script>
@@ -171,18 +238,159 @@ async function init() {
   $('run').addEventListener('click', run);
   $('tab-editor').addEventListener('click', () => showTab('editor'));
   $('tab-dict').addEventListener('click', () => showTab('dict'));
+  $('tab-convert').addEventListener('click', () => showTab('convert'));
+  $('tab-ask').addEventListener('click', () => showTab('ask'));
+  $('convert-btn').addEventListener('click', convert);
+  $('conv-open').addEventListener('click', () => openInEditor(cppOut.getValue(), 'from Python → C++'));
+  $('ask-send').addEventListener('click', ask);
+  $('ask-input').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask(); });
+  $('ask-clear').addEventListener('click', () => { askHistory = []; askChecks = []; renderAsk(); });
   $('dict-search').addEventListener('input', renderDictionary);
-  try { if (localStorage.getItem('cppdash-tab') === 'dict') showTab('dict'); } catch (e) {}
+  try { const t = localStorage.getItem('cppdash-tab'); if (t && VIEWS[t] && t !== 'editor') showTab(t); } catch (e) {}
 }
 
 // ---------- tabs ----------
+const VIEWS = { editor: 'editor-view', dict: 'dict', convert: 'convert', ask: 'ask' };
 function showTab(name) {
-  const dict = name === 'dict';
-  $('dict').hidden = !dict; $('editor-view').hidden = dict;
-  $('tab-dict').setAttribute('aria-selected', dict); $('tab-editor').setAttribute('aria-selected', !dict);
-  if (!dict) editor.refresh(); else if (!dictEntries.length) loadDictionary();
+  for (const [tab, view] of Object.entries(VIEWS)) {
+    $(view).hidden = tab !== name;
+    $('tab-' + tab).setAttribute('aria-selected', tab === name);
+  }
+  $('ai-banner').hidden = !(name === 'convert' || name === 'ask') || aiReady;
+  if (name === 'editor') editor.refresh();
+  if (name === 'dict' && !dictEntries.length) loadDictionary();
+  if (name === 'convert') { pyEditor.refresh(); cppOut.refresh(); }
+  if (name === 'convert' || name === 'ask') checkAI();
   try { localStorage.setItem('cppdash-tab', name); } catch (e) {}
 }
+
+// ---------- local AI (Ollama) ----------
+let aiReady = false;
+async function checkAI() {
+  try {
+    const st = await (await fetch('/api/ai/status')).json();
+    aiReady = st.ok;
+    const b = $('ai-banner');
+    if (st.ok) { b.hidden = true; return; }
+    const how = st.reason === 'no_model'
+      ? `Download it once with <code>ollama pull ${esc(st.model)}</code>, then reload this page.`
+      : 'Start it in a terminal with <code>ollama serve</code> (see the README, section "Local AI"), then reload this page.';
+    b.innerHTML = `<strong>The local AI is not ready.</strong> ${esc(st.message)} ${how}`;
+    b.hidden = !['convert', 'ask'].some(t => !$(VIEWS[t]).hidden);
+  } catch (e) {}
+}
+
+function openInEditor(code, label) {
+  let opt = $('example').querySelector('option[value=""]');
+  if (!opt) { opt = document.createElement('option'); opt.value = ''; $('example').prepend(opt); }
+  opt.textContent = label; $('example').value = '';
+  editor.setValue(code); showTab('editor'); run();
+}
+
+// Python -> C++
+const PY_START = `# Logistic growth with Euler's method: try converting this to C++
+import math
+
+r, K, x, h = 0.8, 100.0, 2.0, 0.5
+with open("data.csv", "w") as f:
+    f.write("t,x\\n")
+    t = 0.0
+    while t <= 10.0:
+        f.write(f"{t},{x}\\n")
+        x = x + h * r * x * (1 - x / K)
+        t += h
+print("final x =", round(x, 4))
+print("exact   =", round(K / (1 + (K / 2.0 - 1) * math.exp(-r * t)), 4))
+`;
+const pyEditor = CodeMirror.fromTextArea($('py-code'), { mode: 'python', lineNumbers: true, indentUnit: 4,
+  extraKeys: { 'Ctrl-Enter': convert, Tab: cm => cm.replaceSelection('    ') } });
+const cppOut = CodeMirror.fromTextArea($('cpp-out'), { mode: 'text/x-c++src', lineNumbers: true, indentUnit: 4 });
+pyEditor.setValue(PY_START);
+
+async function convert() {
+  $('convert-btn').disabled = true; $('conv-open').disabled = true;
+  $('conv-status').className = 'status';
+  $('conv-status').textContent = 'The AI is writing the C++ version, then it is compiled and run… (on a CPU this can take a minute)';
+  $('conv-attempts').textContent = '';
+  try {
+    const r = await fetch('/api/ai/convert', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                                              body: JSON.stringify({ python: pyEditor.getValue() }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'The AI did not answer.');
+    cppOut.setValue(j.cpp);
+    const last = j.attempts[j.attempts.length - 1].result;
+    $('conv-attempts').textContent = j.attempts.length > 1
+      ? `${j.attempts.length} attempts: the compiler errors were sent back to the AI to fix.` : '';
+    $('py-out').textContent = (j.python.stdout || '') + (j.python.stderr || '') || '(no output)';
+    $('cpp-run-out').textContent = last.stage === 'compile' ? last.compiler
+      : (last.stdout || '') + (last.stderr || '') + (last.message || '') || '(no output)';
+    if (last.stage === 'compile') setConv('The C++ still does not compile after ' + j.attempts.length + ' attempts: see the errors.', 'err');
+    else if (!last.ok) setConv('The C++ compiles but stopped with an error.', 'err');
+    else if (j.outputs_match === true) setConv('✓ Compiles, runs, and prints the same output as the Python.', 'ok');
+    else if (j.outputs_match === false) setConv('Compiles and runs, but the output differs from the Python: compare them below. (Random numbers always differ between languages.)', 'err');
+    else setConv('Compiles and runs. (The Python did not run, so the outputs could not be compared.)', 'ok');
+    $('conv-open').disabled = false;
+  } catch (e) {
+    setConv(e.message, 'err'); checkAI();
+  }
+  $('convert-btn').disabled = false;
+}
+function setConv(t, c) { $('conv-status').textContent = t; $('conv-status').className = 'status ' + c; }
+
+// Ask AI
+let askHistory = [], askChecks = [];
+const ASK_IDEAS = ['Write a CSV file with two columns', 'Read a CSV file and compute the mean of each column',
+  'Explain std::vector vs a Python list', 'Simulate an SDE with Euler-Maruyama', 'What does & mean in a function argument?'];
+$('ask-suggest').innerHTML = ASK_IDEAS.map(q => `<button class="chip">${esc(q)}</button>`).join('');
+$('ask-suggest').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { $('ask-input').value = b.textContent; $('ask-input').focus(); }));
+
+function renderAnswer(text, checks) {
+  let i = 0, html = '';
+  const parts = text.split(/```([\w+#-]*)[ \t]*\n([\s\S]*?)```/);
+  for (let k = 0; k < parts.length; k++) {
+    if (k % 3 === 0) {
+      html += parts[k].trim().split(/\n{2,}/).filter(Boolean).map(p =>
+        '<p>' + esc(p).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') + '</p>').join('');
+    } else if (k % 3 === 2) {
+      const code = parts[k], c = checks[i++];
+      html += `<pre><code>${esc(code)}</code></pre>`;
+      if (c) html += `<div class="code-actions"><span class="${c.ok ? 'badge-ok' : 'badge-err'}">${
+        c.ok ? '✓ compiled and ran here' : (c.stage === 'compile' ? '✗ does not compile' : '✗ compiles but stopped with an error')}</span>
+        <button data-code="${encodeURIComponent(code)}">Open in editor and run ▶</button></div>`;
+    }
+  }
+  return html;
+}
+
+function renderAsk() {
+  let a = 0;
+  $('ask-log').innerHTML = askHistory.map(m => m.role === 'user'
+    ? `<div class="msg user"><div class="who">You</div><p>${esc(m.content).replace(/\n/g, '<br>')}</p></div>`
+    : `<div class="msg"><div class="who">AI tutor</div>${renderAnswer(m.content, askChecks[a++] || [])}</div>`).join('');
+  $('ask-log').querySelectorAll('button[data-code]').forEach(b => b.addEventListener('click',
+    () => openInEditor(decodeURIComponent(b.dataset.code), 'from AI answer')));
+}
+
+async function ask() {
+  const q = $('ask-input').value.trim();
+  if (!q) return;
+  askHistory.push({ role: 'user', content: q }); $('ask-input').value = ''; renderAsk();
+  $('ask-log').insertAdjacentHTML('beforeend', '<div class="msg" id="thinking"><div class="who">AI tutor</div><p>Thinking… then compiling any program in the answer.</p></div>');
+  $('ask-send').disabled = true;
+  try {
+    const r = await fetch('/api/ai/ask', { method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ history: askHistory, editor_code: $('ask-include').checked ? editor.getValue() : null }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'The AI did not answer.');
+    askHistory.push({ role: 'assistant', content: j.answer }); askChecks.push(j.checks);
+  } catch (e) {
+    askHistory.pop(); $('ask-input').value = q; checkAI();
+    alertBox(e.message);
+  }
+  $('ask-send').disabled = false; renderAsk();
+  window.scrollTo(0, document.body.scrollHeight);
+}
+function alertBox(t) { $('ask-log').insertAdjacentHTML('beforeend', `<div class="msg"><p class="badge-err">${esc(t)}</p></div>`); }
 
 // ---------- C++ <-> Python dictionary ----------
 let dictEntries = [], dictCat = 'All';
@@ -218,11 +426,7 @@ function renderDictionary() {
     </article>`).join('') || '<p class="dict-count">No entry matches.</p>';
   $('dict-list').querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', () => {
     const e = dictEntries.find(x => x.id === b.dataset.id);
-    let opt = $('example').querySelector('option[value=""]');
-    if (!opt) { opt = document.createElement('option'); opt.value = ''; $('example').prepend(opt); }
-    opt.textContent = 'dictionary: ' + e.title;
-    $('example').value = '';
-    editor.setValue(e.code); showTab('editor'); run();
+    openInEditor(e.code, 'dictionary: ' + e.title);
   }));
 }
 
