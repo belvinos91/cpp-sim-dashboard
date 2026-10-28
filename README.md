@@ -77,6 +77,7 @@ To use another model, set `OLLAMA_MODEL`, for example `OLLAMA_MODEL=qwen2.5-code
 | `03_sir_rk4` | SIR epidemic, Runge–Kutta 4 | S+I+R conserved to about 10⁻¹⁵ |
 | `04_sde_euler_maruyama` | Geometric Brownian motion, Euler–Maruyama | Sample mean vs exact mean, with a 2-standard-error band |
 | `05_gillespie_sir` | Exact stochastic SIR (Gillespie) | About 1/R0 of epidemics die out by chance |
+| `06_lamperti_mobius_exact` | Jump-driven prevalence, exact simulation of the logit (Lamperti–Möbius conjugacy) | Monte Carlo matches the exact mean, variance and threshold probability; no time step and no clipping to (0,1) |
 
 ## Run it on your computer
 
